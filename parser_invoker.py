@@ -1,6 +1,9 @@
 import configparser
 import os
+import pandas as pd
 import patoolib
+import pyarrow as pa
+import pyarrow.parquet as pq
 import subprocess
 
 from copy import deepcopy
@@ -47,9 +50,6 @@ def process_archive(fp: Path):
         # 2. so that patool can properly identify the archive file type
         fp = fp.rename(fp.with_suffix(".rar"))
 
-    # TODO: make this directory creation configurable
-    # so that we can have saner names in the directory
-    # hierarchy.
     target_dir = os.path.join(OUTPUT_DIR_PATH, fp.stem)
     try:
         os.mkdir(target_dir)
@@ -62,11 +62,30 @@ def process_archive(fp: Path):
 
     for f in extracted_files:
         t = time()
+
         print(f"Parsing demo file: {f.name}")
         if not invoke_parser(Path(f)):
             print("ERROR :: failed to parse file, skipping to next archive")
             return
+
+        parsed_files_dir = os.path.join(f.parent, f.stem)
+
+        for parsed_file in Path(parsed_files_dir).glob("*.csv"):
+            df = pd.read_csv(parsed_file)
+
+            table = pa.Table.from_pandas(df)
+            pq.write_table(
+                table,
+                f"{os.path.join(parsed_file.parent, parsed_file.stem)}.parquet",
+                row_group_size=1000000000,
+            )
+
+            # deleting parsed csv file
+            os.remove(parsed_file)
+
+        # deleting original demo file
         os.remove(f)
+
         print(f"...done; {time() - t:.2f}s elapsed")
 
 
