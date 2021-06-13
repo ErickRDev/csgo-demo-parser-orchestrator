@@ -71,7 +71,8 @@ def process_archive(fp: Path):
         parsed_files_dir = os.path.join(f.parent, f.stem)
 
         for parsed_file in Path(parsed_files_dir).glob("*.csv"):
-            df = pd.read_csv(parsed_file)
+            df = pd.read_csv(parsed_file, sep=";")
+            print(df)
 
             table = pa.Table.from_pandas(df)
             pq.write_table(
